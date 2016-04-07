@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/codegangsta/cli"
+	"github.com/phacops/garminconnect"
 )
 
 var (
@@ -65,16 +67,72 @@ func GetEPOFile(c *cli.Context) {
 	}
 }
 
+func SyncActivities(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic(errors.New("you need to give the path of the watch"))
+	}
+
+	client, err := garminconnect.NewClient()
+
+	client.Auth("", "")
+
+	err = filepath.Walk(filepath.Join(c.Args()[0], "GARMIN/ACTIVITY"), func(path string, info os.FileInfo, _ error) error {
+		stat, err := os.Stat(path)
+
+		if err != nil {
+			return err
+		}
+
+		if !stat.IsDir() {
+			fmt.Printf("syncing %s...", filepath.Base(path))
+			upload, err := client.UploadActivity(path)
+
+			if err != nil {
+				panic(err)
+			}
+
+			if len(upload.DetailedImportResult.Successes) > 0 {
+				fmt.Printf(" success.\n")
+			} else if len(upload.DetailedImportResult.Failures) > 0 {
+				fmt.Printf(" failure (%s).\n", upload.DetailedImportResult.Failures[0].Messages[0].Content)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "gc"
 	app.Usage = "Interact with Garmin Connect"
 	app.Commands = []cli.Command{
 		{
-			Name:    "epo",
-			Aliases: []string{"e"},
-			Usage:   "download an updated EPO file",
-			Action:  GetEPOFile,
+			Name:    "sync",
+			Aliases: []string{"s"},
+			Usage:   "sync your watch with Garmin Connect",
+			Action: func(c *cli.Context) {
+				GetEPOFile(c)
+				SyncActivities(c)
+			},
+			Subcommands: []cli.Command{
+				{
+					Name:    "epo",
+					Aliases: []string{"e"},
+					Usage:   "download an updated EPO file",
+					Action:  GetEPOFile,
+				},
+				{
+					Name:    "activities",
+					Aliases: []string{"a"},
+					Usage:   "sync activities to Garmin Connect",
+					Action:  SyncActivities,
+				},
+			},
 		},
 	}
 
