@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,16 +14,23 @@ import (
 	"github.com/phacops/garminconnect"
 )
 
-var (
-	EPO_POST_DATA = []byte{10, 45, 10, 7, 101, 120, 112, 114, 101, 115, 115, 18, 5, 100, 101, 95, 68, 69, 26, 7, 87, 105, 110, 100, 111, 119, 115, 34, 18, 54, 48, 49, 32, 83, 101, 114, 118, 105, 99, 101, 32, 80, 97, 99, 107, 32, 49, 18, 10, 8, 140, 180, 147, 184, 14, 18, 0, 24, 0, 24, 28, 34, 0}
+const (
+	CONFIG_FILE = "${XDG_CONFIG_HOME}/gc/config"
 )
 
-func GetEPOFile(c *cli.Context) {
-	if c.NArg() == 0 {
-		panic(errors.New("you need to give the path of the watch"))
-	}
+var (
+	EPO_POST_DATA = []byte{10, 45, 10, 7, 101, 120, 112, 114, 101, 115, 115, 18, 5, 100, 101, 95, 68, 69, 26, 7, 87, 105, 110, 100, 111, 119, 115, 34, 18, 54, 48, 49, 32, 83, 101, 114, 118, 105, 99, 101, 32, 80, 97, 99, 107, 32, 49, 18, 10, 8, 140, 180, 147, 184, 14, 18, 0, 24, 0, 24, 28, 34, 0}
 
-	watchPath := c.Args()[0]
+	config Config
+)
+
+type Config struct {
+	GarminConnectUsername string `json:"gc_username"`
+	GarminConnectPassword string `json:"gc_password"`
+	WatchDir              string `json:"watch_dir"`
+}
+
+func GetEPOFile(c *cli.Context) {
 	client := &http.Client{}
 	request, _ := http.NewRequest("POST", "http://omt.garmin.com/Rce/ProtobufApi/EphemerisService/GetEphemerisData", bytes.NewBuffer(EPO_POST_DATA))
 
@@ -55,8 +63,8 @@ func GetEPOFile(c *cli.Context) {
 	}
 
 	for _, folder := range possibleFolders {
-		if _, err := os.Stat(filepath.Join(watchPath, folder)); err == nil {
-			err = ioutil.WriteFile(filepath.Join(watchPath, folder, "EPO.BIN"), epoBin.Bytes(), 0644)
+		if _, err := os.Stat(filepath.Join(config.WatchDir, folder)); err == nil {
+			err = ioutil.WriteFile(filepath.Join(config.WatchDir, folder, "EPO.BIN"), epoBin.Bytes(), 0644)
 
 			if err != nil {
 				panic(err)
@@ -68,15 +76,19 @@ func GetEPOFile(c *cli.Context) {
 }
 
 func SyncActivities(c *cli.Context) {
-	if c.NArg() == 0 {
-		panic(errors.New("you need to give the path of the watch"))
-	}
-
 	client, err := garminconnect.NewClient()
 
-	client.Auth("", "")
+	if err != nil {
+		panic(err)
+	}
 
-	err = filepath.Walk(filepath.Join(c.Args()[0], "GARMIN/ACTIVITY"), func(path string, info os.FileInfo, _ error) error {
+	err = client.Auth(config.GarminConnectUsername, config.GarminConnectPassword)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = filepath.Walk(filepath.Join(config.WatchDir, "GARMIN/ACTIVITY"), func(path string, info os.FileInfo, _ error) error {
 		stat, err := os.Stat(path)
 
 		if err != nil {
@@ -107,9 +119,42 @@ func SyncActivities(c *cli.Context) {
 }
 
 func main() {
+	configFile, err := os.Open(os.ExpandEnv(CONFIG_FILE))
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.NewDecoder(configFile).Decode(&config)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if config.WatchDir == "" {
+		panic(errors.New("you must give a path for to the watch"))
+	}
+
 	app := cli.NewApp()
 	app.Name = "gc"
 	app.Usage = "Interact with Garmin Connect"
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "username, u",
+			Value: "",
+			Usage: "Garmin Connect username",
+		},
+		cli.StringFlag{
+			Name:  "password, p",
+			Value: "",
+			Usage: "Garmin Connect password",
+		},
+		cli.StringFlag{
+			Name:  "dir, d",
+			Value: "/mnt",
+			Usage: "Watch root",
+		},
+	}
 	app.Commands = []cli.Command{
 		{
 			Name:    "sync",
