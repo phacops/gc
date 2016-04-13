@@ -164,7 +164,13 @@ func SyncWorkouts(c *cli.Context) {
 				panic(err)
 			}
 
-			fmt.Sprintf(" Success\n")
+			err = client.DeleteMessage(message.Id)
+
+			if err != nil {
+				fmt.Sprintf(" Error (%s)\n", err.Error())
+			} else {
+				fmt.Sprintf(" Success\n")
+			}
 		}
 	}
 }
