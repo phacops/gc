@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -118,6 +119,56 @@ func SyncActivities(c *cli.Context) {
 	}
 }
 
+func SyncWorkouts(c *cli.Context) {
+	client, err := garminconnect.NewClient()
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = client.Auth(config.GarminConnectUsername, config.GarminConnectPassword)
+
+	if err != nil {
+		panic(err)
+	}
+
+	messages, err := client.Messages()
+
+	if err != nil {
+		panic(err)
+	}
+
+	for _, message := range messages {
+		if message.DeviceXmlDataType == garminconnect.WORKOUT_FILE_TYPE {
+			fmt.Printf(`downloading "%s" to the watch...`, message.Metadata.MessageName)
+
+			fitFile, err := os.Create(filepath.Join(config.WatchDir, fmt.Sprintf("GARMIN/WORKOUTS/%d.FIT", message.Metadata.Id)))
+
+			if err != nil {
+				panic(err)
+			}
+
+			defer fitFile.Close()
+
+			response, err := http.Get(garminconnect.GARMIN_CONNECT_URL + "/" + message.Metadata.MessageUrl)
+
+			if err != nil {
+				panic(err)
+			}
+
+			defer response.Body.Close()
+
+			_, err = io.Copy(fitFile, response.Body)
+
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Sprintf(" Success\n")
+		}
+	}
+}
+
 func main() {
 	configFile, err := os.Open(os.ExpandEnv(CONFIG_FILE))
 
@@ -163,6 +214,7 @@ func main() {
 			Action: func(c *cli.Context) {
 				GetEPOFile(c)
 				SyncActivities(c)
+				SyncWorkouts(c)
 			},
 			Subcommands: []cli.Command{
 				{
@@ -174,8 +226,14 @@ func main() {
 				{
 					Name:    "activities",
 					Aliases: []string{"a"},
-					Usage:   "sync activities to Garmin Connect",
+					Usage:   "sync activities",
 					Action:  SyncActivities,
+				},
+				{
+					Name:    "workouts",
+					Aliases: []string{"w"},
+					Usage:   "sync workouts",
+					Action:  SyncWorkouts,
 				},
 			},
 		},
