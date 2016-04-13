@@ -182,8 +182,8 @@ func main() {
 		panic(err)
 	}
 
-	if config.WatchDir == "" {
-		panic(errors.New("you must give a path for to the watch"))
+	if _, err := os.Stat(config.WatchDir); err != nil {
+		panic(errors.New("you must give a valid path for to the watch"))
 	}
 
 	app := cli.NewApp()
