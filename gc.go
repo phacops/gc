@@ -164,12 +164,12 @@ func SyncWorkouts(c *cli.Context) {
 				panic(err)
 			}
 
-			err = client.DeleteMessage(message.Id)
+			err = client.MessageReceived(message.Id)
 
 			if err != nil {
-				fmt.Sprintf(" Error (%s)\n", err.Error())
+				fmt.Printf(" Error (%s)\n", err.Error())
 			} else {
-				fmt.Sprintf(" Success\n")
+				fmt.Printf(" Success\n")
 			}
 		}
 	}
