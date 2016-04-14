@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/codegangsta/cli"
 	"github.com/phacops/garminconnect"
+	"github.com/satori/go.uuid"
 )
 
 const (
@@ -142,7 +144,7 @@ func SyncWorkouts(c *cli.Context) {
 		if message.DeviceXmlDataType == garminconnect.WORKOUT_FILE_TYPE {
 			fmt.Printf(`downloading "%s" to the watch...`, message.Metadata.MessageName)
 
-			fitFile, err := os.Create(filepath.Join(config.WatchDir, fmt.Sprintf("GARMIN/WORKOUTS/%d.FIT", message.Metadata.Id)))
+			fitFile, err := os.Create(filepath.Join(config.WatchDir, fmt.Sprintf("GARMIN/NEWFILES/workout_%s.FIT", strings.ToUpper(uuid.NewV4().String()))))
 
 			if err != nil {
 				panic(err)
