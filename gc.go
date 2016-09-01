@@ -215,11 +215,6 @@ func main() {
 			Usage: "Garmin Connect username",
 		},
 		cli.StringFlag{
-			Name:  "password, p",
-			Value: "",
-			Usage: "Garmin Connect password",
-		},
-		cli.StringFlag{
 			Name:  "dir, d",
 			Value: "/mnt",
 			Usage: "Watch root",
