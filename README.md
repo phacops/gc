@@ -12,7 +12,7 @@ cd gc
 go install
 ```
 
-## Create a configuration file
+## Create a configuration file (optional)
 
 `gc` will try to locate a configuration file at
 ```
@@ -20,9 +20,11 @@ ${XDG_CONFIG_HOME}/gc/config
 ${HOME}/.config/gcrc
 ${HOME/.gcrc
 ```
-should be a valid json file with `gc_username`, `gc_password`, and `watch_dir`
-set. The first two variables are Garmin Connect credentials, the last one is
-where the Garmin device is mounted.
+
+It should be a valid json file. Valid keys are `gc_username`, `gc_password`, and
+`watch_dir`. The first two variables are Garmin Connect credentials, the last
+one is where the Garmin device is mounted. If some of these variables are not
+set, the user will be prompted to type them.
 
 Example:
 ```
@@ -38,10 +40,23 @@ Example:
 `gc` supports syncing activities, workouts, and download updated EPO file. The
 Garmin device must first be mounted.
 
+Without config file:
+```
+$ gc sync activities
+Garmin Connect Username: user@example.com
+Garmin Connect Password: 
+Watch Mount Directory: /mnt
+syncing ACTIVITY1.FIT... success
+```
+
+If you saved your settings in a config file, then no prompt is issued:
 ```
 $ gc sync activities
 syncing ACTIVITY3.FIT... success
 ```
+
+Username and watch mount directory can be overriden with the `--username, -u`
+and `--dir, -d` options respectively.
 
 You can get more info using the built-in help:
 ```
