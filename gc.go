@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,20 +11,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/codegangsta/cli"
 	"github.com/phacops/garminconnect"
 	"github.com/satori/go.uuid"
-)
-
-const (
-	CONFIG_FILE = "${XDG_CONFIG_HOME}/gc/config"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var (
 	EPO_POST_DATA = []byte{10, 45, 10, 7, 101, 120, 112, 114, 101, 115, 115, 18, 5, 100, 101, 95, 68, 69, 26, 7, 87, 105, 110, 100, 111, 119, 115, 34, 18, 54, 48, 49, 32, 83, 101, 114, 118, 105, 99, 101, 32, 80, 97, 99, 107, 32, 49, 18, 10, 8, 140, 180, 147, 184, 14, 18, 0, 24, 0, 24, 28, 34, 0}
 
-	config Config
+	argUsername      string
+	argWatchDir      string
+	argNoInteractive bool
 )
 
 type Config struct {
@@ -33,7 +33,85 @@ type Config struct {
 	WatchDir              string `json:"watch_dir"`
 }
 
+func setupConfig() *Config {
+	var config Config
+
+	configFiles := []string{
+		"${XDG_CONFIG_HOME}/gc/config",
+		"${HOME)/.config/gcrc",
+		"${HOME}/.gcrc"}
+
+	for _, path := range configFiles {
+		path = os.ExpandEnv(path)
+		_, err := os.Stat(path)
+		if err == nil {
+			configFile, err := os.Open(path)
+
+			if err != nil {
+				panic(err)
+			}
+
+			err = json.NewDecoder(configFile).Decode(&config)
+
+			if err != nil {
+				panic(err)
+			}
+
+			break
+		}
+	}
+
+	if argUsername != "" {
+		config.GarminConnectUsername = argUsername
+	} else if config.GarminConnectUsername == "" && !argNoInteractive {
+		fmt.Print("Garmin Connect Username: ")
+		reader := bufio.NewReader(os.Stdin)
+		username, err := reader.ReadString('\n')
+		if err != nil {
+			panic(err)
+		}
+		config.GarminConnectUsername = strings.TrimSpace(username)
+	}
+
+	if config.GarminConnectPassword == "" && !argNoInteractive {
+		fmt.Print("Garmin Connect Password: ")
+		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+		fmt.Print("\n")
+		if err != nil {
+			panic(err)
+		}
+		config.GarminConnectPassword = string(bytePassword)
+	}
+
+	if argWatchDir != "" {
+		config.WatchDir = argWatchDir
+	} else if config.WatchDir == "" && !argNoInteractive {
+		fmt.Print("Watch mount directory: ")
+		reader := bufio.NewReader(os.Stdin)
+		watchdir, err := reader.ReadString('\n')
+		if err != nil {
+			panic(err)
+		}
+		config.WatchDir = strings.TrimSpace(watchdir)
+	}
+
+	if config.GarminConnectUsername == "" ||
+		config.GarminConnectPassword == "" ||
+		config.WatchDir == "" {
+		fmt.Fprint(os.Stderr, "Option(s) missing. Aborting.\n")
+		os.Exit(1)
+	}
+
+	if _, err := os.Stat(config.WatchDir); err != nil {
+		fmt.Fprintf(os.Stderr, "%s is not a valid mount point for the watch.\n", config.WatchDir)
+		os.Exit(1)
+	}
+
+	return &config
+}
+
 func GetEPOFile(c *cli.Context) {
+	config := setupConfig()
 	client := &http.Client{}
 	request, _ := http.NewRequest("POST", "http://omt.garmin.com/Rce/ProtobufApi/EphemerisService/GetEphemerisData", bytes.NewBuffer(EPO_POST_DATA))
 
@@ -79,6 +157,7 @@ func GetEPOFile(c *cli.Context) {
 }
 
 func SyncActivities(c *cli.Context) {
+	config := setupConfig()
 	client, err := garminconnect.NewClient()
 
 	if err != nil {
@@ -122,6 +201,7 @@ func SyncActivities(c *cli.Context) {
 }
 
 func SyncWorkouts(c *cli.Context) {
+	config := setupConfig()
 	client, err := garminconnect.NewClient()
 
 	if err != nil {
@@ -178,40 +258,26 @@ func SyncWorkouts(c *cli.Context) {
 }
 
 func main() {
-	configFile, err := os.Open(os.ExpandEnv(CONFIG_FILE))
-
-	if err != nil {
-		panic(err)
-	}
-
-	err = json.NewDecoder(configFile).Decode(&config)
-
-	if err != nil {
-		panic(err)
-	}
-
-	if _, err := os.Stat(config.WatchDir); err != nil {
-		panic(errors.New("you must give a valid path for to the watch"))
-	}
-
 	app := cli.NewApp()
 	app.Name = "gc"
 	app.Usage = "Interact with Garmin Connect"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "username, u",
-			Value: "",
-			Usage: "Garmin Connect username",
+			Name:        "username, u",
+			Value:       "",
+			Usage:       "Garmin Connect username",
+			Destination: &argUsername,
 		},
 		cli.StringFlag{
-			Name:  "password, p",
-			Value: "",
-			Usage: "Garmin Connect password",
+			Name:        "dir, d",
+			Value:       "",
+			Usage:       "Watch root",
+			Destination: &argWatchDir,
 		},
-		cli.StringFlag{
-			Name:  "dir, d",
-			Value: "/mnt",
-			Usage: "Watch root",
+		cli.BoolFlag{
+			Name:        "no-interactive",
+			Usage:       "Do not prompt for missing parameters",
+			Destination: &argNoInteractive,
 		},
 	}
 	app.Commands = []cli.Command{
