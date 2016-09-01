@@ -14,7 +14,12 @@ go install
 
 ## Create a configuration file
 
-`gc` will try to locate a configuration file at `$XDG_CONFIG_HOME/gc/config`. It
+`gc` will try to locate a configuration file at
+```
+${XDG_CONFIG_HOME}/gc/config
+${HOME}/.config/gcrc
+${HOME/.gcrc
+```
 should be a valid json file with `gc_username`, `gc_password`, and `watch_dir`
 set. The first two variables are Garmin Connect credentials, the last one is
 where the Garmin device is mounted.

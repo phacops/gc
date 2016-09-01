@@ -17,10 +17,6 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-const (
-	CONFIG_FILE = "${XDG_CONFIG_HOME}/gc/config"
-)
-
 var (
 	EPO_POST_DATA = []byte{10, 45, 10, 7, 101, 120, 112, 114, 101, 115, 115, 18, 5, 100, 101, 95, 68, 69, 26, 7, 87, 105, 110, 100, 111, 119, 115, 34, 18, 54, 48, 49, 32, 83, 101, 114, 118, 105, 99, 101, 32, 80, 97, 99, 107, 32, 49, 18, 10, 8, 140, 180, 147, 184, 14, 18, 0, 24, 0, 24, 28, 34, 0}
 
@@ -178,7 +174,22 @@ func SyncWorkouts(c *cli.Context) {
 }
 
 func main() {
-	configFile, err := os.Open(os.ExpandEnv(CONFIG_FILE))
+	configFiles := []string{
+		"${XDG_CONFIG_HOME}/gc/config",
+		"${HOME)/.config/gcrc",
+		"${HOME}/.gcrc"}
+
+	var configPath string
+	for _, path := range configFiles {
+		path = os.ExpandEnv(path)
+		_, err := os.Stat(path)
+		if err == nil {
+			configPath = path
+			break
+		}
+	}
+
+	configFile, err := os.Open(configPath)
 
 	if err != nil {
 		panic(err)
